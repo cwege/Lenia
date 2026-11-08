@@ -4,6 +4,15 @@ import scipy.spatial.distance, scipy.signal
 import reikna.fft, reikna.cluda        # pip3 install pyopencl/pycuda, reikna
 import PIL.Image, PIL.ImageTk          # pip3 install pillow
 import PIL.ImageDraw, PIL.ImageFont
+# Pillow >= 9.5 rejects boxes with x1<x0 or y1<y0; old Pillow accepted them. Normalize coordinates.
+def _pil_sorted_box(xy):
+    v = [float(c) for p in xy for c in (p if hasattr(p, '__len__') else (p,))]
+    if len(v) != 4: return xy
+    return [min(v[0],v[2]), min(v[1],v[3]), max(v[0],v[2]), max(v[1],v[3])]
+for _name in ('rectangle', 'ellipse'):
+    def _wrap(orig):
+        return lambda self, xy, *a, **kw: orig(self, _pil_sorted_box(xy), *a, **kw)
+    setattr(PIL.ImageDraw.ImageDraw, _name, _wrap(getattr(PIL.ImageDraw.ImageDraw, _name)))
 try: import tkinter as tk
 except: import Tkinter as tk
 from fractions import Fraction
@@ -1550,7 +1559,7 @@ class Lenia:
         self.img.putpalette(self.colormaps[self.colormap_id])
 
     def draw_title(self, draw, line, title, color=255):
-        title_w, title_h = draw.textsize(title)
+        _l, _t, _r, _b = draw.textbbox((0,0), title); title_w, title_h = _r-_l, _b-_t
         title_x, title_y = MIDX*PIXEL-title_w//2, line*12+7
         draw.text((title_x,title_y), title, fill=color, font=self.font)
 
